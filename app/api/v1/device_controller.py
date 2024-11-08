@@ -49,7 +49,7 @@ async def get_devices_by_pod(pod_id: int, service: DeviceService = Depends(get_d
     return received_data
 
 
-@device_router.put("/{record_id}")
+@device_router.patch("/{record_id}")
 async def update_device(record_id: int, device_data: DeviceDTO, service: DeviceService = Depends(get_device_service)):
     received_data = service.update_device(record_id, device_data)
     logging.info(f"Received data: {received_data}")

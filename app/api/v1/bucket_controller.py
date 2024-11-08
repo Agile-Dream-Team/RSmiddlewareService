@@ -49,7 +49,7 @@ async def get_buckets_by_device(device_id: int, service: BucketService = Depends
     return received_data
 
 
-@bucket_router.put("/{record_id}")
+@bucket_router.patch("/{record_id}")
 async def update_bucket(record_id: int, bucket_data: BucketDTO, service: BucketService = Depends(get_bucket_service)):
     received_data = service.update_bucket(record_id, bucket_data)
     logging.info(f"Received data: {received_data}")
