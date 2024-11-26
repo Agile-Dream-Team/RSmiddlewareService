@@ -1,5 +1,11 @@
 import logging
+
+import httpx
+from fastapi import HTTPException, status
+
 from RSKafkaWrapper.client import KafkaClient
+from app.dto.command_dto import CommandDTO
+from app.dto.command_response_dto import CommandResponseDTO
 from app.shared import (
     messages_device_response, messages_get_all_devices_response, messages_get_by_id_device_response,
     messages_consumed_device_event, lock_device_response, lock_get_all_devices_response,
@@ -76,7 +82,7 @@ class DeviceService:
             messages_consumed_get_by_id_device_event.wait(timeout=10)
 
             with lock_get_by_id_device_response:
-                return parse_and_flatten_messages(messages_get_by_id_device_response)
+                return parse_and_flatten_messages(messages_get_by_id_device_response)[0]
         except Exception as e:
             logging.error(f"Error in get_by_id_device_service: {e}")
             raise
@@ -358,3 +364,76 @@ class DeviceService:
         except Exception as e:
             logging.error(f"Error in get_device_health_check_service: {e}")
             raise
+
+    async def send_command_to_esp(
+            self,
+            raspberry_pi_id: int,
+            esp_id: int,
+            command: CommandDTO
+    ) -> CommandResponseDTO:
+        try:
+            # Verify device exist
+            raspberry_pi = self.get_by_id_device_service({"id": raspberry_pi_id})
+
+            if not raspberry_pi:
+                error_message = f"Raspberry pi {raspberry_pi_id} not found"
+
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_message
+                )
+
+            logging.info(f'rasp {raspberry_pi}')
+
+            # Find the ESP32 device
+            esp_32 = next(
+                (esp for esp in raspberry_pi['esp_devices'] if esp['id'] == esp_id),
+                None
+            )
+
+            if esp_32 is None:
+                error_message = f"ESP32 device with id {esp_id} not found on Raspberry Pi {raspberry_pi_id}"
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=error_message
+                )
+            # Verify ESP32 has the capability
+
+            # Construct the Raspberry Pi URL using registered IP and port
+            ip_address = raspberry_pi.get('ip_address')
+            port = raspberry_pi.get('port')
+
+            # Handle different IP address formats
+            if "://" in ip_address:  # If IP includes protocol (http:// or https://)
+                raspberry_pi_url = f"{ip_address}:{port}"
+            else:  # If IP is just the address
+                protocol = "https" if port == 443 else "http"
+                raspberry_pi_url = f"{protocol}://{ip_address}:{port}"
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{raspberry_pi_url}/esp32/{esp_id}/command",
+                    json=command.model_dump(),
+                    timeout=float(command.timeout)
+                )
+
+                if response.status_code != 200:
+                    logging.error(f"Command failed: {response.text}")
+                    raise HTTPException(
+                        status_code=response.status_code,
+                        detail="Command execution failed"
+                    )
+
+                return CommandResponseDTO(
+                    success=True,
+                    message="Command executed successfully",
+                    data=response.json()
+                )
+
+        except httpx.RequestError as e:
+            logging.error(f"Error sending command: {e}")
+            raise HTTPException(status_code=503, detail="Failed to communicate with Raspberry Pi")
+
+        except Exception as e:
+            logging.error(f"Unexpected error: {e}")
+            raise HTTPException(status_code=500, detail=str(e))

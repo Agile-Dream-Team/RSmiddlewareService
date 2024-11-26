@@ -58,15 +58,18 @@ async def get_inactive_devices(threshold_minutes: Optional[int] = 5,
     return service.get_inactive_devices_service({"threshold_minutes": threshold_minutes})
 """
 
+
 @device_router.get("/{record_id}")
 async def get_device_by_id(record_id: int, service: DeviceService = Depends(get_device_service)):
     return service.get_by_id_device_service({"id": record_id})
+
 
 """
 @device_router.get("/serial/{serial}")
 async def get_device_by_serial(serial: str, service: DeviceService = Depends(get_device_service)):
     return service.get_device_by_serial_service({"serial": serial})
 """
+
 
 @device_router.get("/pod/{pod_id}")
 async def get_devices_by_pod(pod_id: int, service: DeviceService = Depends(get_device_service)):
@@ -162,8 +165,8 @@ async def migrate_device(device_id: int, new_pod_id: int,
 
 @device_router.post("/{raspberry_pi_id}/{esp_id}", response_model=CommandResponseDTO)
 async def send_command(
-        raspberry_pi_id: str,
-        esp_id: str,
+        raspberry_pi_id: int,
+        esp_id: int,
         command: CommandDTO,
         service: DeviceService = Depends(get_device_service)
 ):

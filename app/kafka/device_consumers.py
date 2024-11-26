@@ -144,7 +144,7 @@ def consume_message_get_active_devices(msg):
     try:
         with lock_get_active_devices_response:
             messages_get_active_devices_response.append(msg)
-        logging.info(f"Consumed message in delete_device_response: {msg}")
+        logging.info(f"Consumed message in get_active_devices_response: {msg}")
         messages_consumed_get_active_devices_event.set()
     except Exception as e:
         logging.error(f"Error processing message in get_active_devices_response: {e}")
