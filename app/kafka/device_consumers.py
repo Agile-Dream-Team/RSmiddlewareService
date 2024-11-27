@@ -24,10 +24,10 @@ from app.shared import (
 )
 
 
-@kafka_client.topic('device_registration_response')
+@kafka_client.topic('create_device_response')
 def consume_message_device(msg):
     """
-    Consumes messages from the device_response topic.
+    Consumes messages from the create_device_response topic.
     Handles device creation responses and triggers related events.
 
     Args:

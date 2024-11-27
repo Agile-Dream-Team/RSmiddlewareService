@@ -88,11 +88,13 @@ app.include_router(
     prefix=f"{base_path}/api/v1/buckets",
     tags=["Buckets"]
 )
+"""
 app.include_router(
     command_router,
     prefix=f"{base_path}/api/v1/commands",
     tags=["Commands"]
 )
+"""
 
 
 class HealthCheck(BaseModel):

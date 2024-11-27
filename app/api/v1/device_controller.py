@@ -1,13 +1,13 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app.dto.command_dto import CommandDTO
 from app.dto.command_response_dto import CommandResponseDTO
-from app.dto.device_dto import DeviceDTO, DeviceRegistrationDTO, ESP32StatusUpdateDTO
+from app.dto.device_dto import DeviceDTO, DeviceRegistrationDTO
 from app.responses.custom_responses import ErrorModel
 from app.services.device_service import DeviceService
 from RSKafkaWrapper.client import KafkaClient
-from typing import Optional
+from fastapi import HTTPException, status
 
 device_router = APIRouter()
 
@@ -26,29 +26,53 @@ def get_device_service(client: KafkaClient = Depends(get_kafka_client)) -> Devic
     return DeviceService(client)
 
 
-@device_router.post("/register")
-async def register_device(device_data: DeviceRegistrationDTO, service: DeviceService = Depends(get_device_service)):
-    received_data = service.register_device_service(device_data.model_dump())
-    logging.info(f"Received data: {received_data}")
+@device_router.post("/create")
+async def register_device(
+        device_data: DeviceRegistrationDTO,
+        service: DeviceService = Depends(get_device_service)
+):
+    """Register a new device."""
+    try:
+        received_data = service.register_device_service(device_data.model_dump())
+        logging.info(f"Received data: {received_data}")
+        status_code = received_data['status_code']
+        if received_data['status_code'] != status.HTTP_200_OK:
+            raise HTTPException(
+                status_code=status_code,
+                detail=received_data['message']
+            )
 
-    status_code = received_data.get('status_code', 500)
-    if status_code != 200:
-        error_message = received_data.get('error', 'Unknown error occurred')
-        logging.error(f"Error in register_device: {error_message}")
+        return received_data
+
+    except Exception as e:
+        logging.error(f"Error in register_device: {str(e)}")
         raise HTTPException(
-            status_code=status_code,
-            detail={
-                "status_code": status_code,
-                "error": error_message
-            }
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
         )
-
-    return received_data
 
 
 @device_router.get("/active")
 async def get_active_devices(service: DeviceService = Depends(get_device_service)):
-    return service.get_active_devices_service()
+    """Get all active devices."""
+    try:
+        received_data = service.get_active_devices_service()
+        logging.info(f"Retrieved active devices successfully")
+        status_code = received_data['status_code']
+        if received_data['status_code'] != status.HTTP_200_OK:
+            raise HTTPException(
+                status_code=status_code,
+                detail=received_data['message']
+            )
+
+        return received_data
+
+    except Exception as e:
+        logging.error(f"Error retrieving active devices: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
 
 """
@@ -61,7 +85,17 @@ async def get_inactive_devices(threshold_minutes: Optional[int] = 5,
 
 @device_router.get("/{record_id}")
 async def get_device_by_id(record_id: int, service: DeviceService = Depends(get_device_service)):
-    return service.get_by_id_device_service({"id": record_id})
+    received_data = service.get_by_id_device_service({"id": record_id})
+    logging.info(f"Retrieved device successfully")
+    status_code = received_data['status_code']
+
+    if received_data['status_code'] != status.HTTP_200_OK:
+        raise HTTPException(
+            status_code=status_code,
+            detail=received_data['message']
+        )
+
+    return received_data
 
 
 """
@@ -76,9 +110,11 @@ async def get_devices_by_pod(pod_id: int, service: DeviceService = Depends(get_d
     return service.get_devices_by_pod_service({"pod_id": pod_id})
 
 
+"""
 @device_router.get("/{device_id}/esp32s")
 async def get_device_with_esp32s(device_id: int, service: DeviceService = Depends(get_device_service)):
     return service.get_device_with_esp32s_service({"device_id": device_id})
+"""
 
 
 @device_router.patch("/{record_id}")

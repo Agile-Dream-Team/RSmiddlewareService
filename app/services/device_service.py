@@ -142,7 +142,7 @@ class DeviceService:
             messages_consumed_register_device_event.clear()
 
             mapper = DeviceRegistrationMapper(**registration_data)
-            self.client.send_message("register_device", mapper.model_dump())
+            self.client.send_message("create_device", mapper.model_dump())
 
             messages_consumed_register_device_event.wait(timeout=10)
 
@@ -307,7 +307,7 @@ class DeviceService:
             messages_consumed_get_active_devices_event.wait(timeout=10)
 
             with lock_get_active_devices_response:
-                return parse_and_flatten_messages(messages_get_active_devices_response)
+                return parse_and_flatten_messages(messages_get_active_devices_response)[0]
         except Exception as e:
             logging.error(f"Error in get_active_devices_service: {e}")
             raise
@@ -376,11 +376,9 @@ class DeviceService:
             raspberry_pi = self.get_by_id_device_service({"id": raspberry_pi_id})
 
             if not raspberry_pi:
-                error_message = f"Raspberry pi {raspberry_pi_id} not found"
-
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_message
+                    detail=f"Raspberry pi {raspberry_pi_id} not found"
                 )
 
             logging.info(f'rasp {raspberry_pi}')
@@ -392,10 +390,9 @@ class DeviceService:
             )
 
             if esp_32 is None:
-                error_message = f"ESP32 device with id {esp_id} not found on Raspberry Pi {raspberry_pi_id}"
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail=error_message
+                    detail=f"ESP32 device with id {esp_id} not found on Raspberry Pi {raspberry_pi_id}"
                 )
             # Verify ESP32 has the capability
 
