@@ -1,10 +1,14 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
-from typing import List, Optional, Dict, Any
+from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, Field
-from enum import Enum
 import httpx
+
+from app.api.v1.enums import DeviceStatus, DeviceType
+from app.dto.command_dto import CommandDTO
+from app.dto.command_response_dto import CommandResponseDTO
+from app.dto.esp32_dto import ESP32DTO
+from app.dto.raspberry_pi_registration_dto import RaspberryPiRegistrationDTO
 
 # Configure logging
 logging.basicConfig(
@@ -12,74 +16,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-
-# Enums
-class DeviceType(str, Enum):
-    RASPBERRY_PI = "raspberry_pi"
-    ESP32 = "esp32"
-
-
-class DeviceCapability(str, Enum):
-    TEMPERATURE = "temperature"
-    HUMIDITY = "humidity"
-    RELAY = "relay"
-    LED = "led"
-    PUMP = "pump"
-    VALVE = "valve"
-
-
-class CommandType(str, Enum):
-    RELAY_CONTROL = "relay_control"
-    LED_CONTROL = "led_control"
-    PUMP_CONTROL = "pump_control"
-    VALVE_CONTROL = "valve_control"
-    SENSOR_READ = "sensor_read"
-
-
-class DeviceStatus(str, Enum):
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-    MAINTENANCE = "maintenance"
-    ERROR = "error"
-
-
-# DTOs
-class ESP32DTO(BaseModel):
-    esp_id: str
-    name: str
-    capabilities: List[DeviceCapability]
-    location: str
-    metadata: Dict = {}
-
-
-class RaspberryPiRegistrationDTO(BaseModel):
-    device_id: str
-    ip_address: str
-    port: int
-    name: str
-    location: str
-    esp_devices: List[ESP32DTO] = []
-
-
-class DeviceStatusDTO(BaseModel):
-    status: DeviceStatus
-    last_seen: datetime
-    metadata: Dict = {}
-
-
-class CommandDTO(BaseModel):
-    command_type: CommandType
-    parameters: Dict[str, Any]
-    priority: int = Field(default=1, ge=1, le=5)
-    timeout: int = Field(default=30, ge=5, le=300)
-
-
-class CommandResponseDTO(BaseModel):
-    success: bool
-    message: str
-    data: Optional[Dict] = None
-    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 # Device Registry Implementation
@@ -162,8 +98,16 @@ class DeviceRegistry:
                     detail=f"ESP32 does not have {command_capability} capability"
                 )
 
-            # Send command to Raspberry Pi
-            raspberry_pi_url = f"http://localhost:9090"
+            # Construct the Raspberry Pi URL using registered IP and port
+            ip_address = raspberry_pi["ip_address"]
+            port = raspberry_pi["port"]
+
+            # Handle different IP address formats
+            if "://" in ip_address:  # If IP includes protocol (http:// or https://)
+                raspberry_pi_url = f"{ip_address}:{port}"
+            else:  # If IP is just the address
+                protocol = "https" if port == 443 else "http"
+                raspberry_pi_url = f"{protocol}://{ip_address}:{port}"
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
